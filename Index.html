@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Treatem</title>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600&display=swap" rel="stylesheet" />
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      height: 100%;
+      background-color: #000;
+      color: #fff;
+      font-family: 'Times New Roman', serif;
+      overflow: hidden;
+      position: relative;
+    }
+    #mathCanvas {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100vw;
+      height: 100vh;
+      pointer-events: none;
+      z-index: 0;
+    }
+    #intro, #mainContent, #bookScene {
+      position: fixed;
+      width: 100vw;
+      height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 10;
+      flex-direction: column;
+      background: transparent;
+      transition: opacity 0.6s ease;
+    }
+    #intro {
+      background: transparent;
+    }
+    .circle-button {
+      width: 120px;
+      height: 120px;
+      border-radius: 50%;
+      background: #fff;
+      color: #000;
+      font-family: 'Times New Roman', serif;
+      font-size: 2.5rem;
+      font-weight: bold;
+      border: none;
+      cursor: pointer;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      margin: 10px;
+      transition: transform 0.3s ease, box-shadow 0.3s ease;
+      box-shadow: 0 0 10px #fff;
+      user-select: none;
+      position: relative;
+      z-index: 10;
+      animation: floatUpDown 4s ease-in-out infinite;
+    }
+    .circle-button:hover {
+      transform: scale(1.1);
+      box-shadow: 0 0 18px #fff;
+    }
+    @keyframes floatUpDown {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-10px); }
+    }
+    #sayingsOverlay {
+      position: fixed;
+      top: -100vh;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background: #fff;
+      color: #000;
+      font-size: 2rem;
+      font-style: italic;
+      font-weight: normal;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+      padding: 3rem 4rem;
+      box-sizing: border-box;
+      box-shadow: 0 0 40px rgba(0, 0, 0, 0.15);
+      transition: top 1s ease;
+      user-select: none;
+      z-index: 20;
+    }
+    #mainContent {
+      flex-direction: row;
+      opacity: 0;
+      gap: 40px;
+      display: none;
+    }
+    #bookScene {
+      flex-direction: column;
+      background: #fff;
+      opacity: 0;
+      color: #000;
+      display: none;
+      overflow: hidden;
+      z-index: 15;
+    }
+    .book {
+      width: 90vw;
+      height: 90vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 2vw;
+      gap: 20px;
+      box-sizing: border-box;
+    }
+    .page {
+      flex: 1;
+      font-size: 1.3rem;
+      background: #fefefe;
+      color: #000;
+      border-radius: 12px;
+      padding: 2rem;
+      box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
+      overflow-y: auto;
+      max-height: 100%;
+      max-width: 50%;
+      cursor: pointer;
+      position: relative;
+      user-select: text;
+    }
+    .page-number {
+      position: absolute;
+      bottom: 10px;
+      width: 100%;
+      text-align: center;
+      font-size: 0.8rem;
+      color: #888;
+      user-select: none;
+    }
+    .back-button {
+      margin: 20px;
+      width: 60px;
+      height: 60px;
+      border-radius: 50%;
+      background: #fff;
+      color: #000;
+      font-family: 'Times New Roman', serif;
+      font-size: 1.5rem;
+      border: none;
+      cursor: pointer;
+      box-shadow: 0 0 10px #fff;
+      transition: transform 0.3s ease, box-shadow 0.3s ease;
+      user-select: none;
+      position: relative;
+      z-index: 15;
+    }
+    .back-button:hover {
+      transform: scale(1.1);
+      box-shadow: 0 0 18px #fff;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="mathCanvas"></canvas>
+
+  <div id="intro">
+    <button class="circle-button" id="introButton">≈</button>
+  </div>
+
+  <div id="sayingsOverlay"></div>
+
+  <div id="mainContent" style="display:none; opacity:0;">
+    <button class="circle-button" id="bookButton">?</button>
+    <a class="circle-button" href="download.html">∑</a>
+  </div>
+
+  <div id="bookScene">
+    <div class="book">
+      <div class="page" id="leftPage">
+        <div class="page-content" id="leftPageContent"></div>
+        <div class="page-number" id="leftPageNum"></div>
+      </div>
+      <div class="page" id="rightPage">
+        <div class="page-content" id="rightPageContent"></div>
+        <div class="page-number" id="rightPageNum"></div>
+      </div>
+    </div>
+    <button class="back-button" id="backToHomeButton">←</button>
+  </div>
+
+<script>
+  // Math symbols floating background animation
+  const canvas = document.getElementById('mathCanvas');
+  const ctx = canvas.getContext('2d');
+  let width, height;
+  const mathSymbols = ['∑','∞','√','π','≈','∫','Δ','≠','∂','∇','θ','λ','Ω','α','β','γ'];
+  let symbols = [];
+
+  function randomRange(min, max) {
+    return Math.random() * (max - min) + min;
+  }
+
+  class SymbolParticle {
+    constructor() {
+      this.reset();
+    }
+    reset() {
+      this.x = randomRange(0, width);
+      this.y = randomRange(height, height + 100);
+      this.size = randomRange(20, 40);
+      this.speed = randomRange(0.3, 1);
+      this.opacity = 0;
+      this.opacitySpeed = 0.01;
+      this.symbol = mathSymbols[Math.floor(Math.random() * mathSymbols.length)];
+      this.horizontalShift = randomRange(-0.5, 0.5);
+    }
+    update() {
+      this.y -= this.speed;
+      this.x += this.horizontalShift;
+      if(this.opacity < 1) {
+        this.opacity += this.opacitySpeed;
+      }
+      if(this.y < -50 || this.x < -50 || this.x > width + 50) {
+        this.reset();
+        this.opacity = 0;
+      }
+    }
+    draw(ctx) {
+      ctx.save();
+      ctx.globalAlpha = this.opacity * 0.3;
+      ctx.fillStyle = '#fff';
+      ctx.font = `${this.size}px 'Times New Roman', serif`;
+      ctx.textAlign = 'center';
+      ctx.fillText(this.symbol, this.x, this.y);
+      ctx.restore();
+    }
+  }
+
+  function init() {
+    width = window.innerWidth;
+    height = window.innerHeight;
+    canvas.width = width;
+    canvas.height = height;
+    symbols = [];
+    for(let i = 0; i < 40; i++) {
+      symbols.push(new SymbolParticle());
+    }
+  }
+
+  function animate() {
+    ctx.clearRect(0, 0, width, height);
+    symbols.forEach(s => {
+      s.update();
+      s.draw(ctx);
+    });
+    requestAnimationFrame(animate);
+  }
+
+  window.addEventListener('resize', () => {
+    init();
+  });
+
+  init();
+  animate();
+
+  // Main logic
+
+  const intro = document.getElementById("intro");
+  const sayingsOverlay = document.getElementById("sayingsOverlay");
+  const mainContent = document.getElementById("mainContent");
+  const bookScene = document.getElementById("bookScene");
+  const bookButton = document.getElementById("bookButton");
+  const backToHomeButton = document.getElementById("backToHomeButton");
+
+  const sayingsFirst = `"As wise as a Serpent, as Gentle as a Dove"
+  
+Wer Rastet Der Rostet;`;
+
+  const sayingsSecond = `In a world where wrath is a sin, I shall resort to the pen to eleviate my hurt;`;
+
+  function slideDownSayings(text, callback) {
+    sayingsOverlay.textContent = text;
+    sayingsOverlay.style.top = '0';
+    setTimeout(() => {
+      // Stay visible for 3 seconds
+      setTimeout(() => {
+        sayingsOverlay.style.top = '-100vh';
+        setTimeout(() => {
+          if(callback) callback();
+        }, 1000);
+      }, 3000);
+    }, 100); // slight delay for transition
+  }
+
+  document.getElementById("introButton").addEventListener('click', () => {
+    slideDownSayings(sayingsFirst, () => {
+      intro.style.display = 'none';
+      mainContent.style.display = 'flex';
+      setTimeout(() => { mainContent.style.opacity = '1'; }, 50);
+    });
+  });
+
+  bookButton.addEventListener('click', () => {
+    slideDownSayings(sayingsSecond, () => {
+      mainContent.style.display = 'none';
+      bookScene.style.display = 'flex';
+      bookScene.style.opacity = '1';
+      pageIndex = 0;
+      renderPages();
+    });
+  });
+
+  backToHomeButton.addEventListener('click', () => {
+    bookScene.style.opacity = '0';
+    setTimeout(() => {
+      bookScene.style.display = 'none';
+      mainContent.style.display = 'flex';
+      mainContent.style.opacity = '1';
+    }, 500);
+  });
+
+  // Diary pages static content example
+  const diaryPages = [
+    "Entry 1:\nThis is the beginning of my journey. It started with quiet observations, reflections in solitude, and a growing awareness of my uniqueness.",
+    "Entry 2:\nI’ve come to realize how unique my experience is. Through patterns and perceptions, I find clarity in places others may not. The world may not always understand, but I do.",
+    "Entry 3:\nToday I discovered something profound: the quiet strength in listening, and the comfort in structure.",
+    "Entry 4:\nReflections on what it means to truly connect, not just socially but internally.",
+    "Entry 5:\nContinued growth, learning to navigate the world with empathy and courage.",
+    "Entry 6:\nThe journey is ongoing, and every day reveals new layers of understanding."
+  ];
+
+  let pageIndex = 0;
+  const leftPageContent = document.getElementById("leftPageContent");
+  const rightPageContent = document.getElementById("rightPageContent");
+  const leftPageNum = document.getElementById("leftPageNum");
+  const rightPageNum = document.getElementById("rightPageNum");
+  const leftPage = document.getElementById("leftPage");
+  const rightPage = document.getElementById("rightPage");
+
+  function renderPages() {
+    leftPageContent.textContent = diaryPages[pageIndex] || "";
+    leftPageNum.textContent = pageIndex + 1;
+
+    rightPageContent.textContent = diaryPages[pageIndex + 1] || "";
+    rightPageNum.textContent = (pageIndex + 2) <= diaryPages.length ? pageIndex + 2 : "";
+  }
+
+  leftPage.addEventListener('click', () => {
+    if (pageIndex === 0) return;
+    pageIndex -= 2;
+    renderPages();
+  });
+
+  rightPage.addEventListener('click', () => {
+    if (pageIndex + 2 >= diaryPages.length) return;
+    pageIndex += 2;
+    renderPages();
+  });
+
+</script>
+</body>
+</html>
